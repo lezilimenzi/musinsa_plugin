@@ -216,24 +216,31 @@ def group_signals(signals: list[dict[str, Any]], theme_count: dict[str, int]) ->
 
 # --- 4. rank_looks: LLM 제로샷 룩 랭킹 (후보 집합을 인자로 받음 = 확장 이음새) ---
 
-def _look_card(look: dict[str, Any], products: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _look_card(look: dict[str, Any], products: dict[str, dict[str, Any]], brands: dict[str, dict[str, Any]]) -> dict[str, Any]:
     linked = sorted(tags(look.get("linked_product_ids")))
     names = ", ".join(products[p]["product_name"] for p in linked if p in products)
+    brand = look.get("brand", "")
+    brand_row = brands.get(brand, {})
     return {
         "look_id": look["look_id"],
         "look_title": look.get("look_title", ""),
         "season": look.get("season", ""),
         "full_body_visible": look.get("full_body_visible", ""),
         "linked_products": names,
+        "brand": brand,
+        "brand_specialty": brand_row.get("specialty", ""),
+        "brand_identity": brand_row.get("identity", ""),
     }
 
 
 def rank_looks(themes: list[dict[str, Any]], candidate_looks: list[dict[str, Any]], signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
     client, model = _llm_client_model()
     products = {row["product_id"]: row for row in read_csv(INPUTS / "product_catalog.csv")}
+    brands = {row["brand"]: row for row in read_csv(INPUTS / "brand_catalog.csv")}
     signal_by_id = {s["signal_id"]: s for s in signals}
-    look_ids = {look["look_id"] for look in candidate_looks}
-    cards = [_look_card(look, products) for look in candidate_looks]
+    look_by_id = {look["look_id"]: look for look in candidate_looks}
+    look_ids = set(look_by_id)
+    cards = [_look_card(look, products, brands) for look in candidate_looks]
     schema = {
         "type": "object", "additionalProperties": False, "required": ["ranked"],
         "properties": {"ranked": {"type": "array", "items": {
@@ -265,6 +272,9 @@ def rank_looks(themes: list[dict[str, Any]], candidate_looks: list[dict[str, Any
                 "제공된 look_id 목록에서만 고르고 목록에 없는 룩을 만들지 마라. "
                 "display_keyword는 이 룩을 이 테마로 노출할 때 쓸 한국어 대표 키워드, "
                 "reason은 테마 근거에 기반한 한국어 설명이다. "
+                "각 룩에는 브랜드와 그 브랜드의 전문 분야(brand_specialty)·아이덴티티가 있다. "
+                "브랜드 전문성이 이 테마와 강하게 맞으면(예: 수영복 전문 브랜드가 물놀이 테마) fit_score를 더 높이고, "
+                "그 경우 reason에 브랜드와 전문성을 언급하라. 브랜드가 테마와 무관하면 브랜드 때문에 점수를 올리지 마라. "
                 "매출·전환율·재고·판매 순위 같은 근거 없는 주장을 하지 마라.\n"
                 "테마: " + json.dumps(theme_ctx, ensure_ascii=False) + "\n"
                 "룩 후보: " + json.dumps(cards, ensure_ascii=False)
@@ -279,6 +289,7 @@ def rank_looks(themes: list[dict[str, Any]], candidate_looks: list[dict[str, Any
                 "theme_id": theme["theme_id"],
                 "theme_label": theme["theme_label"],
                 "look_id": item["look_id"],
+                "brand": look_by_id[item["look_id"]].get("brand", ""),
                 "display_keyword": item["display_keyword"].strip(),
                 "fit_score": clamp(float(item["fit_score"])),
                 "reason": item["reason"].strip(),
@@ -291,13 +302,12 @@ def rank_looks(themes: list[dict[str, Any]], candidate_looks: list[dict[str, Any
 
 def label_looks() -> list[dict[str, Any]]:
     looks = read_csv(INPUTS / "look_catalog_raw.csv")
-    reviewed = {row["look_id"] for row in read_csv(INPUTS / "human_labeled_looks.csv")}
     labeled = []
     for look in looks:
         linked_count = len(tags(look["linked_product_ids"]))
-        confidence = 0.75 + (0.19 if look["look_id"] in reviewed else 0) + (0.05 if linked_count else 0)
+        confidence = 0.75 + (0.05 if linked_count else 0)
         look["label_confidence"] = clamp(confidence)
-        look["label_sources"] = "metadata,products" + (",human" if look["look_id"] in reviewed else "")
+        look["label_sources"] = "metadata,products"
         look["full_body_visible"] = str(as_bool(look["full_body_visible"])).lower()
         labeled.append(look)
     return labeled
@@ -330,6 +340,7 @@ def assemble_slots(ranked: list[dict[str, Any]], looks: list[dict[str, Any]], ta
             "display_keyword": row["display_keyword"],
             "look_id": row["look_id"],
             "look_title": look.get("look_title", ""),
+            "brand": look.get("brand", ""),
             "image_url": look.get("image_url", ""),
             "full_body_visible": look.get("full_body_visible", ""),
             "source_ids": joined(row["evidence_source_ids"]),
@@ -405,6 +416,7 @@ def generate_reports(plan: list[dict[str, Any]], mappings: list[dict[str, Any]],
             "",
             f"- 전신 코디: `{row['look_id']}` / `{row['full_body_visible']}`",
             f"- 코디명: {row['look_title']}",
+            f"- 브랜드: {row.get('brand', '')}",
             f"- 선정 근거: {row['selection_reason']}",
             f"- 출처: {row['source_ids']}",
             "- 연결 상품:",
@@ -523,7 +535,7 @@ def run(as_of: str | None = None, clean_output: bool = False) -> dict[str, Any]:
 
     ranked = rank_looks(themes, eligible_looks, signals)
     ranking_rows = [{**row, "evidence_source_ids": joined(row["evidence_source_ids"])} for row in ranked]
-    ranking_fields = ["theme_id", "theme_label", "look_id", "display_keyword", "fit_score", "reason", "evidence_source_ids"]
+    ranking_fields = ["theme_id", "theme_label", "look_id", "brand", "display_keyword", "fit_score", "reason", "evidence_source_ids"]
     write_csv(OUTPUTS / "theme_look_ranking.csv", ranking_rows, ranking_fields)
 
     feedback = feedback_scores()
@@ -533,7 +545,7 @@ def run(as_of: str | None = None, clean_output: bool = False) -> dict[str, Any]:
     per_theme_cap = int(config["per_theme_cap"])
     min_fit_score = float(config.get("min_fit_score", 0.0))
     plan = assemble_slots(ranked, looks, target_slots, per_theme_cap, min_fit_score)
-    plan_fields = ["slot", "category", "display_keyword", "look_id", "look_title", "image_url", "full_body_visible", "source_ids", "selection_reason"]
+    plan_fields = ["slot", "category", "display_keyword", "look_id", "look_title", "brand", "image_url", "full_body_visible", "source_ids", "selection_reason"]
     write_csv(OUTPUTS / "home_exposure_plan.csv", plan, plan_fields)
     write_csv(OUTPUTS / "category_look_selection.csv", plan, plan_fields)
 

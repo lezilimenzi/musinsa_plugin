@@ -462,23 +462,20 @@ event_tpo → season_weather → trend_discovery → item_led → occasion
 룩 라벨링은 전체를 사람이 수작업으로 붙이는 방식이 아니다. 다음 요소를 결합한다.
 
 ```text
-기존 무신사 룩 메타데이터
-+ 룩 제목/설명/해시태그
-+ 연결 상품의 색상·소재·카테고리·태그
-+ label_taxonomy.yaml
-+ synonym_dictionary.yaml
-+ 일부 사람 검수 데이터
-= look_catalog_labeled.csv
+기존 룩 메타데이터(제목, 브랜드, shot_type, full_body_visible, season)
++ 연결 상품 유무
+= look_catalog_labeled.csv (label_confidence 포함)
 ```
+
+> Phase 2 재설계(§27)에서 태그·label_taxonomy·synonym·사람 검수는 제거됐다. 스타일 매칭은 라벨이 아니라 LLM 랭킹이 담당한다.
 
 ### 13.3 AI와 비AI 역할 구분
 
 | 라벨링 작업 | AI 여부 | 설명 |
 |---|---|---|
-| 연결 상품 속성을 룩 라벨로 전파 | AI 아님 | 상품 색상, 소재, 카테고리, 브랜드 태그를 룩으로 전달 |
-| 해시태그를 표준 라벨로 매핑 | 주로 AI 아님 | 동의어 사전과 규칙 기반 정규화 |
-| 애매한 제목/설명에서 스타일 무드 추론 | AI 보조 가능 | LLM으로 락시크, 긱시크, 오피스코어 등 해석 |
-| 라벨 confidence 계산 | AI 아님 | 메타데이터 일치 수, 상품 연결 수, 사람 검수 여부 기반 |
+| 전신(full_body) 검증 | AI 아님 | shot_type/full_body_visible 확인 |
+| label_confidence 계산 | AI 아님 | 연결 상품 유무 기반 |
+| 스타일 해석·룩 매칭 | AI | 태그가 아니라 LLM 창발 테마 + 제로샷 랭킹에서 수행 (§27) |
 
 ### 13.4 룩 카탈로그 예시
 
@@ -702,11 +699,9 @@ submission.zip                                           # 예선 최종 제출 
 │   │       └── SKILL.md                               # RAG 기반 문구 생성, 근거 표, 검증 리포트 작성 규칙을 정의
 │   │
 │   ├── inputs/                                        # 샘플 입력 데이터 폴더
-│   │   ├── trend_signal_samples.csv                   # 검색량, 해시태그, 유튜브 제목/자막 등 패션 트렌드 후보 샘플 데이터
 │   │   ├── home_context_config.yaml                   # MVP 실행 시점의 홈 화면 노출 조건. 날짜, 시즌, 지역, 목표 슬롯 수 등을 정의
 │   │   ├── product_catalog.csv                        # 상품 ID, 상품명, 브랜드, 카테고리, 색상, 소재, 가격, 태그, 이미지 URL 등 상품 메타데이터
-│   │   ├── look_catalog_raw.csv                       # 원본 스냅/코디 데이터. image_url, shot_type, full_body_visible, 제목, 설명, 해시태그, 연결상품을 포함
-│   │   ├── human_labeled_looks.csv                    # 사람이 검수한 소량의 룩 라벨 데이터. 자동 라벨 검증 기준으로 사용
+│   │   ├── look_catalog_raw.csv                       # 룩 카탈로그. look_id, 제목, image_url, source_type, shot_type, full_body_visible, season, 연결상품 (매칭은 LLM이라 태그 컬럼 없음)
 │   │   └── feedback_log_sample.csv                    # 룩별 impression, click, save, dwell_seconds 샘플 로그. 실제 운영 로그가 없으므로 MVP 샘플 사용
 │   │
 │   ├── tools/                                         # 파이프라인 코드 폴더 (실제 로직은 pipeline.py에 집중)
@@ -1081,14 +1076,14 @@ Anchor Classification Accuracy
 
 ### 24.2 룩 라벨링 검증
 
-사람이 검수한 `human_labeled_looks.csv`와 자동 생성된 `look_catalog_labeled.csv`를 비교한다.
+라벨링이 전신 검증 + 상품 기반 confidence로 축소되어(§27, 태그·사람 검수 제거) 다음을 확인한다.
 
 지표:
 
 ```text
-Label Precision
-Label Recall
-Label Confidence Calibration
+Full-body Coverage (전 슬롯 full_body)
+Grounding Coverage (전 슬롯 근거 source_id)
+Label Confidence 계산 정확성
 ```
 
 ### 24.3 룩 매칭 검증

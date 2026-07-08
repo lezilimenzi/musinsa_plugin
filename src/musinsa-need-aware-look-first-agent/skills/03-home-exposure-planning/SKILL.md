@@ -10,6 +10,7 @@ they emerge from the extracted signals.
 
 - Group signals into 3–6 emergent themes; the LLM generates each Korean theme label from the data.
 - For each theme, rank eligible full-body looks with an LLM zero-shot ranker: only looks in the catalog, only full-body, each with a Korean `display_keyword` and a grounded `reason`.
+- Give the ranker each look's brand and its `specialty`/`identity` (from `brand_catalog.csv`). When a brand's specialty strongly matches the theme (e.g. a swimwear-specialist brand for a water/festival theme), the fit score should rise and the reason should cite the brand. Do not raise the score for an unrelated brand.
 - Eligibility: verified full-body look, minimum label confidence, and at least one linked product.
 - Do not use a global weighted popularity score; ranking is per-theme LLM fit only.
 - Assemble slots by global assignment: sort every (theme, look) pair by `fit_score` and take the top pairs so each look lands on its best-fitting theme. No duplicate look, at most `per_theme_cap` per theme, up to `target_slots`.

@@ -140,7 +140,7 @@ tools/run_pipeline.py  (live 전용, --mode 없음)
   ├─ 2. extract               LLM: 자유서술 신호 추출(태그 없음)
   ├─ 3. group_signals         LLM: 신호를 창발 테마 3~6개로 그룹핑
   ├─ 4. rank_looks            LLM: 테마별 룩 제로샷 랭킹(전신만·근거 기반) + 사후검증
-  ├─ 5. label_looks           full_body 검증 + confidence(인간리뷰/상품수)
+  ├─ 5. label_looks           full_body 검증 + confidence(상품 연결 기반)
   ├─ 6. assemble_slots        테마 라운드로빈, 중복無, 채운 만큼(target_slots)
   ├─ 7. map_products          핵심/보조/대체 상품 연결
   ├─ 8. feedback_scores       참고 지표(선별 미사용)
@@ -199,7 +199,9 @@ LLM이 3~6개 테마를 생성하며 라벨은 데이터에서 만든다(사전 
 
 ### 6.4 룩 랭킹 — `outputs/theme_look_ranking.csv`
 
-테마별 LLM 제로샷 랭킹. 컬럼: `theme_id, theme_label, look_id, fit_score, reason, evidence_source_ids`.
+테마별 LLM 제로샷 랭킹. 컬럼: `theme_id, theme_label, look_id, brand, display_keyword, fit_score, reason, evidence_source_ids`.
+**브랜드 반영:** 룩 카드에 `brand`+`brand_specialty`+`brand_identity`(from `brand_catalog.csv`)를 넣어, 브랜드
+전문성이 테마와 맞으면(예: 수영복 전문 브랜드 배럴 ↔ 물놀이 테마) LLM이 `fit_score`를 더 높이고 reason에 브랜드를 언급한다.
 **사후검증:** `look_id ∈ 카탈로그`, `full_body==true`, `evidence_source_ids ⊆ 테마 신호 source_id`.
 위반 행은 드롭한다.
 
@@ -257,10 +259,11 @@ feedback_score = 0.50*smoothed_ctr_norm + 0.30*save_rate + 0.20*normalized_dwell
 - `--mode` 인자 제거(항상 live). `--as-of`, `--clean-output`만 유지.
 
 ### 7.6 inputs/
-- 실제 입력 6종: `look_catalog_raw.csv`(전신 룩·상품 연결), `product_catalog.csv`, `human_labeled_looks.csv`, `feedback_log_sample.csv`, `home_context_config.yaml`, `trend_signal_samples.csv`.
+- 실제 입력 5종: `home_context_config.yaml`(설정), `look_catalog_raw.csv`(룩 재고), `brand_catalog.csv`(브랜드 전문성·아이덴티티), `product_catalog.csv`(상품), `feedback_log_sample.csv`(피드백, 참고용).
 - `home_context_config.yaml`: `quotas`/`fallback_order`/`slot_count` 폐기 → `target_slots`, `per_theme_cap`, `min_fit_score`(기본 0.6), `theme_count:{min:3,max:6}` 도입.
-- `trend_signal_samples.csv`: sample 전용이라 sample 제거와 함께 삭제 예정.
-- **삭제 완료:** `label_taxonomy.yaml`, `synonym_dictionary.yaml`, 미사용 입력 5종(`trend_sources`/`context_sources`/`event_calendar`/`social_event_posts`/`weather_season_context`).
+- `look_catalog_raw.csv`: `*_tags` 7개 컬럼 삭제(미사용), `brand` 컬럼 추가. 컬럼: look_id/look_title/brand/image_url/source_type/shot_type/full_body_visible/season/linked_product_ids.
+- `brand_catalog.csv`: `brand, specialty, identity` — 실존 브랜드의 전문 분야·스타일. rank_looks가 룩 카드에 실어 브랜드-테마 적합을 반영.
+- **삭제 완료:** `label_taxonomy.yaml`, `synonym_dictionary.yaml`, 미사용/가짜 입력 7종(`trend_sources`/`context_sources`/`event_calendar`/`social_event_posts`/`weather_season_context`/`trend_signal_samples`/`human_labeled_looks`).
 
 ### 7.7 tools/ 단계명 shim 정리 (완료)
 RESEARCH 단계명을 모듈로 유지하던 4줄짜리 re-export shim 12종(`source_search`, `classify_anchors`,
