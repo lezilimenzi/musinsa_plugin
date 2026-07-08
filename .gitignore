@@ -1,0 +1,30 @@
+# --- Python ---
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- 가상환경 ---
+.venv/
+venv/
+env/
+
+# --- 비밀 정보 (절대 커밋 금지) ---
+.env
+.env.*
+*.key
+*.pem
+secrets.*
+
+# --- 파이프라인 생성 산출물 (실행 시 재생성) ---
+outputs/
+reports/
+
+# --- OS / 에디터 ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+

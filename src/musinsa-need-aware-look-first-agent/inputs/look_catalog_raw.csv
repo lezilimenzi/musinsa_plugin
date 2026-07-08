@@ -1,0 +1,12 @@
+look_id,look_title,image_url,source_type,shot_type,full_body_visible,season,style_tags,tpo_tags,event_tags,weather_tags,color_tags,item_tags,material_tags,linked_product_ids
+L001,락시크 블랙 레더 전신룩,https://example.com/looks/L001.jpg,snap,full_body,true,summer,"rock_chic","concert","concert","","black,silver","leather_jacket,boots,chain_bag","leather,denim","P001,P002"
+L002,시어 톱 데님 레이어드룩,https://example.com/looks/L002.jpg,model,full_body,true,summer,"sheer_layering","summer_outdoor","","heat","blue,white","sheer_top,shorts","sheer,denim","P003,P004"
+L003,블루 워터 페스티벌룩,https://example.com/looks/L003.jpg,snap,full_body,true,summer,"festival,sporty","summer_outdoor","water_festival","heat","blue,white","tshirt,shorts,sandals,waterproof_bag","nylon,polyester","P005,P006"
+L004,그래픽 티셔츠 콘서트룩,https://example.com/looks/L004.jpg,snap,full_body,true,summer,"rock_chic","concert","concert","heat","black,red","tshirt,shorts,boots","cotton,denim","P007,P008"
+L005,린넨 셔츠 폭염 출근룩,https://example.com/looks/L005.jpg,model,full_body,true,summer,"minimal","office","","heat","white,beige","linen_shirt","linen","P009,P010"
+L006,나일론 장마 데일리룩,https://example.com/looks/L006.jpg,snap,full_body,true,summer,"sporty","office","","monsoon","black","rain_boots,waterproof_bag","nylon,waterproof","P011,P012"
+L007,버킷백 미니멀 코디,https://example.com/looks/L007.jpg,snap,full_body,true,summer,"minimal","office","","","beige,brown","bucket_bag","cotton,leather","P013,P014"
+L008,메리제인 로맨틱 코디,https://example.com/looks/L008.jpg,model,full_body,true,summer,"romantic","date","","","white,black","mary_jane,dress","cotton,leather","P015,P016"
+L009,티셔츠 백팩 캠퍼스룩,https://example.com/looks/L009.jpg,snap,full_body,true,summer,"campus","campus","","heat","blue,white","tshirt,backpack","cotton,denim","P017,P018"
+L010,원피스 여름 데이트룩,https://example.com/looks/L010.jpg,model,full_body,true,summer,"romantic","date","","heat","white,red","dress,mary_jane","cotton,leather","P019,P020"
+

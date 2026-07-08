@@ -1,0 +1,22 @@
+product_id,product_name,brand,category,color,material,tags,image_url
+P001,블랙 레더 재킷,Alpha,jacket,black,leather,"rock_chic",https://example.com/products/P001.jpg
+P002,블랙 앵클 부츠,Beta,shoes,black,leather,"boots,rock_chic",https://example.com/products/P002.jpg
+P003,화이트 시어 톱,Gamma,top,white,sheer,"sheer_top",https://example.com/products/P003.jpg
+P004,데님 쇼츠,Delta,bottom,blue,denim,"shorts",https://example.com/products/P004.jpg
+P005,블루 그래픽 티셔츠,Echo,top,blue,cotton,"tshirt,festival",https://example.com/products/P005.jpg
+P006,방수 크로스백,Foxtrot,bag,blue,nylon,"waterproof_bag",https://example.com/products/P006.jpg
+P007,콘서트 그래픽 티셔츠,Golf,top,black,cotton,"tshirt,concert",https://example.com/products/P007.jpg
+P008,블랙 데님 쇼츠,Hotel,bottom,black,denim,"shorts",https://example.com/products/P008.jpg
+P009,화이트 린넨 셔츠,India,top,white,linen,"linen_shirt,office",https://example.com/products/P009.jpg
+P010,베이지 라이트 팬츠,Juliet,bottom,beige,linen,"office,heat",https://example.com/products/P010.jpg
+P011,블랙 레인부츠,Kilo,shoes,black,waterproof,"rain_boots",https://example.com/products/P011.jpg
+P012,나일론 방수백,Lima,bag,black,nylon,"waterproof_bag,monsoon",https://example.com/products/P012.jpg
+P013,브라운 버킷백,Mike,bag,brown,leather,"bucket_bag",https://example.com/products/P013.jpg
+P014,베이지 와이드 팬츠,November,bottom,beige,cotton,"minimal,office",https://example.com/products/P014.jpg
+P015,블랙 메리제인,Oscar,shoes,black,leather,"mary_jane",https://example.com/products/P015.jpg
+P016,화이트 미니 원피스,Papa,dress,white,cotton,"dress,romantic",https://example.com/products/P016.jpg
+P017,캠퍼스 티셔츠,Quebec,top,white,cotton,"tshirt,campus",https://example.com/products/P017.jpg
+P018,블루 백팩,Romeo,bag,blue,nylon,"backpack,campus",https://example.com/products/P018.jpg
+P019,레드 포인트 원피스,Sierra,dress,red,cotton,"dress,date",https://example.com/products/P019.jpg
+P020,데이트 메리제인,Tango,shoes,black,leather,"mary_jane,date",https://example.com/products/P020.jpg
+

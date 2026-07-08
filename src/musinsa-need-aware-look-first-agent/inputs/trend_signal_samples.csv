@@ -1,0 +1,12 @@
+source_id,source_type,title,url,published_at,category,display_keyword,text
+SRC001,editorial,락시크 스타일 신호,https://example.com/trends/rock-chic,2026-07-01,trend_discovery,락시크,"블랙 레더 재킷과 부츠, 실버 액세서리를 조합한 락시크 전신 코디가 주목받고 있다."
+SRC002,creator_social,시어 레이어링 스타일,https://example.com/trends/sheer,2026-07-02,trend_discovery,시어 레이어드룩,"시어 톱을 데님과 겹쳐 입는 여름 레이어드 전신 코디가 확산되고 있다."
+SRC003,official_event,여름 워터 페스티벌,https://example.com/events/water-festival,2026-07-03,event_tpo,워터 페스티벌룩,"워터 페스티벌에는 블루 티셔츠와 쇼츠, 샌들, 방수백을 함께 착용한 코디가 적합하다."
+SRC004,official_event,여름 야외 콘서트,https://example.com/events/concert,2026-07-04,event_tpo,여름 콘서트룩,"야외 콘서트에는 그래픽 티셔츠와 데님 쇼츠, 편한 부츠를 조합한 전신 코디가 어울린다."
+SRC005,weather,서울 폭염 전망,https://example.com/weather/heat,2026-07-05,season_weather,폭염 출근룩,"폭염에는 통기성 좋은 린넨 셔츠와 가벼운 팬츠 중심의 출근 코디가 필요하다."
+SRC006,weather,장마철 코디 맥락,https://example.com/weather/monsoon,2026-07-05,season_weather,장마 데일리룩,"장마에는 나일론 아우터와 레인부츠, 방수백을 활용한 전신 코디가 실용적이다."
+SRC007,search,버킷백 관심 증가,https://example.com/items/bucket-bag,2026-07-01,item_led,버킷백 코디,"버킷백을 셔츠와 와이드 팬츠에 매치한 미니멀 코디가 관심을 얻고 있다."
+SRC008,search,메리제인 코디 탐색,https://example.com/items/mary-jane,2026-07-02,item_led,메리제인 코디,"메리제인을 원피스나 데님에 매치한 로맨틱 캐주얼 전신 코디가 보인다."
+SRC009,season_calendar,여름 캠퍼스 스타일,https://example.com/occasion/campus,2026-07-01,occasion,캠퍼스룩,"티셔츠와 데님, 백팩을 조합한 가벼운 캠퍼스 전신 코디가 적합하다."
+SRC010,season_calendar,여름 데이트 스타일,https://example.com/occasion/date,2026-07-01,occasion,여름 데이트룩,"가벼운 원피스와 메리제인, 미니백을 조합한 여름 데이트 전신 코디가 어울린다."
+
