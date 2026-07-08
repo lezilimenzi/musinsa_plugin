@@ -6,7 +6,7 @@ description: Map selected full-body looks to core, supporting, and substitute pr
 # Product mapping
 
 - Directly linked products are core or supporting products.
-- Substitute products must share category and compatible tags.
+- Substitute products must share the same product category.
 - Do not claim stock availability unless inventory data is provided.
 
 Output:

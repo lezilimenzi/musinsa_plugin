@@ -371,8 +371,12 @@ python C:/Users/akswo/.codex/skills/.system/plugin-creator/scripts/validate_plug
 
 ## 15. 구현 상태
 
-- 재설계 계획 승인: **대기 중** (구현 전)
-- 초기 MVP(태그 기반): 구현·검증 완료됐으나 본 재설계로 대체 예정
+- 재설계 계획 승인: **완료** → 브랜치 `redesign/emergent-theme-ranking`에서 구현
+- 파이프라인 재작성: **완료** (extract/group_signals/rank_looks/assemble_slots 신설, 태그·sample·shim 제거, validate 완화)
+- config·run_pipeline·SKILL 5종·README 갱신: **완료**
+- 테스트: **17개 통과** (assemble/validate/report 계약 + label_looks; LLM 단계는 모의/계약 검증)
+- live 스모크(§10.3): **미실행** — API 키·비용 필요, 사용자 환경에서 확인 예정
+- 초기 MVP(태그 기반): 본 재설계로 대체됨
 - `live_search` 개선(검색 강제·재시도·skip): 적용 완료(`tools/debugging.md`)
 
 ## 16. 확장 로드맵 (앱 확장 시 · MVP 범위 밖, 문서화만)

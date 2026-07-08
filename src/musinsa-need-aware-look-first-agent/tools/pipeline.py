@@ -4,7 +4,6 @@ import json
 import os
 import time
 from collections import defaultdict
-from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,53 +14,20 @@ ROOT = Path(__file__).resolve().parents[1]
 INPUTS = ROOT / "inputs"
 OUTPUTS = ROOT / "outputs"
 REPORTS = ROOT / "reports"
-CATEGORIES = ["trend_discovery", "event_tpo", "season_weather", "item_led", "occasion"]
 BANNED_CLAIMS = ["전환율을", "매출을 증가", "가장 많이 팔", "재고가 충분"]
-
-SIGNAL_FIELDS = [
-    "signal_id", "source_id", "category", "display_keyword", "raw_text",
-    "style_moods", "colors", "items", "materials", "events", "tpos",
-    "weather", "seasons", "confidence", "extraction_method", "extracted_at",
-]
-
-SAMPLE_TAGS: dict[str, dict[str, list[str]]] = {
-    "SRC001": {"style_moods": ["rock_chic"], "colors": ["black", "silver"], "items": ["leather_jacket", "boots", "chain_bag"], "materials": ["leather", "denim"], "tpos": ["concert"]},
-    "SRC002": {"style_moods": ["sheer_layering"], "colors": ["blue", "white"], "items": ["sheer_top", "shorts"], "materials": ["sheer", "denim"], "weather": ["heat"], "seasons": ["summer"]},
-    "SRC003": {"style_moods": ["festival", "sporty"], "colors": ["blue", "white"], "items": ["tshirt", "shorts", "sandals", "waterproof_bag"], "materials": ["nylon"], "events": ["water_festival"], "tpos": ["summer_outdoor"], "seasons": ["summer"]},
-    "SRC004": {"style_moods": ["rock_chic"], "colors": ["black", "red"], "items": ["tshirt", "shorts", "boots"], "materials": ["cotton", "denim"], "events": ["concert"], "tpos": ["concert"], "seasons": ["summer"]},
-    "SRC005": {"style_moods": ["minimal"], "colors": ["white", "beige"], "items": ["linen_shirt"], "materials": ["linen"], "tpos": ["office"], "weather": ["heat"], "seasons": ["summer"]},
-    "SRC006": {"style_moods": ["sporty"], "colors": ["black"], "items": ["rain_boots", "waterproof_bag"], "materials": ["nylon", "waterproof"], "weather": ["monsoon"], "seasons": ["summer"]},
-    "SRC007": {"style_moods": ["minimal"], "colors": ["beige", "brown"], "items": ["bucket_bag"], "materials": ["leather"], "tpos": ["office"], "seasons": ["summer"]},
-    "SRC008": {"style_moods": ["romantic"], "colors": ["white", "black"], "items": ["mary_jane", "dress"], "materials": ["cotton", "leather"], "tpos": ["date"], "seasons": ["summer"]},
-    "SRC009": {"style_moods": ["campus"], "colors": ["blue", "white"], "items": ["tshirt", "backpack"], "materials": ["cotton", "denim"], "tpos": ["campus"], "seasons": ["summer"]},
-    "SRC010": {"style_moods": ["romantic"], "colors": ["white", "red"], "items": ["dress", "mary_jane"], "materials": ["cotton", "leather"], "tpos": ["date"], "weather": ["heat"], "seasons": ["summer"]},
-}
 
 
 def _iso(as_of: str) -> str:
     return f"{as_of}T00:00:00+00:00"
 
 
-def sample_search(as_of: str) -> dict[str, Any]:
-    rows = read_csv(INPUTS / "trend_signal_samples.csv")
-    return {
-        "query": "bundled sample signals",
-        "collected_at": _iso(as_of),
-        "results": [
-            {
-                "source_id": row["source_id"],
-                "title": row["title"],
-                "url": row["url"],
-                "published_at": row["published_at"],
-                "source_type": row["source_type"],
-                "category": row["category"],
-                "display_keyword": row["display_keyword"],
-                "snippet": row["text"],
-            }
-            for row in rows
-        ],
-    }
+def _llm_client_model() -> tuple[Any, str]:
+    from openai import OpenAI
 
+    return OpenAI(), os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+
+
+# --- 1. live 웹 검색 (유지: 검색 강제 / 재시도 / 실패 카테고리 skip) ---
 
 def _walk_citations(value: Any) -> list[dict[str, str]]:
     found: list[dict[str, str]] = []
@@ -146,100 +112,182 @@ def live_search(as_of: str) -> dict[str, Any]:
     return {"query": "live category searches", "collected_at": _iso(as_of), "results": results}
 
 
-def sample_extract(search_data: dict[str, Any], as_of: str) -> list[dict[str, Any]]:
-    signals: list[dict[str, Any]] = []
-    for index, source in enumerate(search_data["results"], start=1):
-        values = SAMPLE_TAGS.get(source["source_id"], {})
-        signal = {
-            "signal_id": f"SIG{index:03d}",
-            "source_id": source["source_id"],
-            "category": source["category"],
-            "display_keyword": source["display_keyword"],
-            "raw_text": source["snippet"],
-            "confidence": 0.9,
-            "extraction_method": "rule_fallback",
-            "extracted_at": _iso(as_of),
-        }
-        for field in ["style_moods", "colors", "items", "materials", "events", "tpos", "weather", "seasons"]:
-            signal[field] = values.get(field, [])
-        signals.append(signal)
-    return signals
+# --- 2. extract: 자유서술 신호 추출 (통제어휘 태그 없음) ---
 
-
-def live_extract(search_data: dict[str, Any], as_of: str) -> list[dict[str, Any]]:
-    from openai import OpenAI
-
-    client = OpenAI()
-    model = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+def extract(search_data: dict[str, Any]) -> list[dict[str, Any]]:
+    client, model = _llm_client_model()
     sources = [
-        {key: source.get(key, "") for key in ["source_id", "category", "title", "url", "snippet"]}
+        {key: source.get(key, "") for key in ["source_id", "title", "url", "snippet"]}
         for source in search_data["results"]
     ]
-    item_schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["source_id", "category", "display_keyword", "style_moods", "colors", "items", "materials", "events", "tpos", "weather", "seasons", "confidence"],
-        "properties": {
-            "source_id": {"type": "string"},
-            "category": {"type": "string", "enum": CATEGORIES},
-            "display_keyword": {"type": "string"},
-            "style_moods": {"type": "array", "items": {"type": "string"}},
-            "colors": {"type": "array", "items": {"type": "string"}},
-            "items": {"type": "array", "items": {"type": "string"}},
-            "materials": {"type": "array", "items": {"type": "string"}},
-            "events": {"type": "array", "items": {"type": "string"}},
-            "tpos": {"type": "array", "items": {"type": "string"}},
-            "weather": {"type": "array", "items": {"type": "string"}},
-            "seasons": {"type": "array", "items": {"type": "string"}},
-            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-        },
+    valid_ids = {source["source_id"] for source in search_data["results"]}
+    schema = {
+        "type": "object", "additionalProperties": False, "required": ["signals"],
+        "properties": {"signals": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["display_keyword", "description", "evidence_source_ids", "confidence"],
+            "properties": {
+                "display_keyword": {"type": "string"},
+                "description": {"type": "string"},
+                "evidence_source_ids": {"type": "array", "items": {"type": "string"}},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            },
+        }}},
     }
     response = client.responses.create(
         model=model,
-        input="다음 검색 근거에서 패션 신호를 추출하라. 대표 키워드는 한국어 20자 이내로 작성하고 근거 없는 값을 만들지 마라.\n" + json.dumps(sources, ensure_ascii=False),
-        text={"format": {"type": "json_schema", "name": "fashion_signals", "strict": True, "schema": {
-            "type": "object", "additionalProperties": False, "required": ["signals"],
-            "properties": {"signals": {"type": "array", "items": item_schema}},
-        }}},
+        input=(
+            "다음 검색 근거에서 한국 패션 트렌드 신호를 자유롭게 추출하라. "
+            "통제된 태그 목록에 얽매이지 말고 신호의 의미를 서술하라. "
+            "display_keyword는 한국어 20자 이내 대표 키워드, description은 한국어 서술이다. "
+            "evidence_source_ids는 제공된 source_id 목록에서만 고르고 근거 없는 값을 만들지 마라.\n"
+            + json.dumps(sources, ensure_ascii=False)
+        ),
+        text={"format": {"type": "json_schema", "name": "fashion_signals", "strict": True, "schema": schema}},
     )
     extracted = json.loads(response.output_text)["signals"]
-    source_by_id = {item["source_id"]: item for item in search_data["results"]}
-    signals = []
+    signals: list[dict[str, Any]] = []
     for index, item in enumerate(extracted, start=1):
-        if item["source_id"] not in source_by_id or not item["display_keyword"].strip():
-            raise RuntimeError("LLM extraction failed source or display keyword validation")
-        item.update({
+        evidence = [sid for sid in item["evidence_source_ids"] if sid in valid_ids]
+        if not item["display_keyword"].strip() or not evidence:
+            raise RuntimeError("LLM extraction failed display_keyword or evidence validation")
+        signals.append({
             "signal_id": f"SIG{index:03d}",
-            "raw_text": source_by_id[item["source_id"]]["snippet"],
-            "extraction_method": "llm",
-            "extracted_at": datetime.now(timezone.utc).isoformat(),
+            "display_keyword": item["display_keyword"].strip(),
+            "description": item["description"].strip(),
+            "evidence_source_ids": evidence,
+            "confidence": clamp(float(item["confidence"])),
         })
-        signals.append(item)
+    if not signals:
+        raise RuntimeError("extraction produced no signals")
     return signals
 
 
-def normalize_anchors(signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    anchors = []
-    for signal in signals:
-        if signal["category"] not in CATEGORIES or not signal["display_keyword"].strip():
-            raise ValueError("invalid category or empty display keyword")
-        anchors.append({
-            "anchor_id": signal["signal_id"].replace("SIG", "ANC"),
-            "category": signal["category"],
-            "display_keyword": signal["display_keyword"].strip(),
-            "style_moods": sorted(set(signal["style_moods"])),
-            "colors": sorted(set(signal["colors"])),
-            "items": sorted(set(signal["items"])),
-            "materials": sorted(set(signal["materials"])),
-            "events": sorted(set(signal["events"])),
-            "tpos": sorted(set(signal["tpos"])),
-            "weather": sorted(set(signal["weather"])),
-            "seasons": sorted(set(signal["seasons"])),
-            "evidence_source_ids": [signal["source_id"]],
-            "confidence": clamp(float(signal["confidence"])),
-        })
-    return anchors
+# --- 3. group_signals: 창발 테마 도출 (사전 카테고리 없음) ---
 
+def group_signals(signals: list[dict[str, Any]], theme_count: dict[str, int]) -> list[dict[str, Any]]:
+    client, model = _llm_client_model()
+    valid_ids = {signal["signal_id"] for signal in signals}
+    payload = [
+        {"signal_id": s["signal_id"], "display_keyword": s["display_keyword"], "description": s["description"]}
+        for s in signals
+    ]
+    schema = {
+        "type": "object", "additionalProperties": False, "required": ["themes"],
+        "properties": {"themes": {
+            "type": "array", "minItems": theme_count["min"], "maxItems": theme_count["max"],
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "required": ["theme_label", "member_signal_ids", "rationale"],
+                "properties": {
+                    "theme_label": {"type": "string"},
+                    "member_signal_ids": {"type": "array", "items": {"type": "string"}},
+                    "rationale": {"type": "string"},
+                },
+            },
+        }},
+    }
+    response = client.responses.create(
+        model=model,
+        input=(
+            f"다음 패션 신호들을 의미가 비슷한 것끼리 묶어 {theme_count['min']}~{theme_count['max']}개의 테마로 그룹핑하라. "
+            "사전 정의된 카테고리를 쓰지 말고, 데이터에서 드러나는 테마에 한국어 라벨을 직접 붙여라. "
+            "member_signal_ids는 제공된 signal_id에서만 고르라.\n"
+            + json.dumps(payload, ensure_ascii=False)
+        ),
+        text={"format": {"type": "json_schema", "name": "emergent_themes", "strict": True, "schema": schema}},
+    )
+    raw = json.loads(response.output_text)["themes"]
+    themes: list[dict[str, Any]] = []
+    for index, theme in enumerate(raw, start=1):
+        members = [sid for sid in theme["member_signal_ids"] if sid in valid_ids]
+        if not theme["theme_label"].strip() or not members:
+            continue
+        themes.append({
+            "theme_id": f"T{index}",
+            "theme_label": theme["theme_label"].strip(),
+            "member_signal_ids": members,
+            "rationale": theme["rationale"].strip(),
+        })
+    if not themes:
+        raise RuntimeError("grouping produced no themes")
+    return themes
+
+
+# --- 4. rank_looks: LLM 제로샷 룩 랭킹 (후보 집합을 인자로 받음 = 확장 이음새) ---
+
+def _look_card(look: dict[str, Any], products: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    linked = sorted(tags(look.get("linked_product_ids")))
+    names = ", ".join(products[p]["product_name"] for p in linked if p in products)
+    return {
+        "look_id": look["look_id"],
+        "look_title": look.get("look_title", ""),
+        "season": look.get("season", ""),
+        "full_body_visible": look.get("full_body_visible", ""),
+        "linked_products": names,
+    }
+
+
+def rank_looks(themes: list[dict[str, Any]], candidate_looks: list[dict[str, Any]], signals: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    client, model = _llm_client_model()
+    products = {row["product_id"]: row for row in read_csv(INPUTS / "product_catalog.csv")}
+    signal_by_id = {s["signal_id"]: s for s in signals}
+    look_ids = {look["look_id"] for look in candidate_looks}
+    cards = [_look_card(look, products) for look in candidate_looks]
+    schema = {
+        "type": "object", "additionalProperties": False, "required": ["ranked"],
+        "properties": {"ranked": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["look_id", "display_keyword", "fit_score", "reason"],
+            "properties": {
+                "look_id": {"type": "string"},
+                "display_keyword": {"type": "string"},
+                "fit_score": {"type": "number", "minimum": 0, "maximum": 1},
+                "reason": {"type": "string"},
+            },
+        }}},
+    }
+    ranked: list[dict[str, Any]] = []
+    for theme in themes:
+        members = [signal_by_id[sid] for sid in theme["member_signal_ids"] if sid in signal_by_id]
+        theme_source_ids: set[str] = set()
+        for signal in members:
+            theme_source_ids.update(signal["evidence_source_ids"])
+        theme_ctx = {
+            "theme_label": theme["theme_label"],
+            "rationale": theme["rationale"],
+            "signals": [{"display_keyword": s["display_keyword"], "description": s["description"]} for s in members],
+        }
+        response = client.responses.create(
+            model=model,
+            input=(
+                "다음 테마에 어울리는 전신 코디(룩)를 골라 적합도(fit_score) 순으로 랭킹하라. "
+                "제공된 look_id 목록에서만 고르고 목록에 없는 룩을 만들지 마라. "
+                "display_keyword는 이 룩을 이 테마로 노출할 때 쓸 한국어 대표 키워드, "
+                "reason은 테마 근거에 기반한 한국어 설명이다. "
+                "매출·전환율·재고·판매 순위 같은 근거 없는 주장을 하지 마라.\n"
+                "테마: " + json.dumps(theme_ctx, ensure_ascii=False) + "\n"
+                "룩 후보: " + json.dumps(cards, ensure_ascii=False)
+            ),
+            text={"format": {"type": "json_schema", "name": "look_ranking", "strict": True, "schema": schema}},
+        )
+        items = json.loads(response.output_text)["ranked"]
+        for item in items:
+            if item["look_id"] not in look_ids or not item["display_keyword"].strip() or not theme_source_ids:
+                continue
+            ranked.append({
+                "theme_id": theme["theme_id"],
+                "theme_label": theme["theme_label"],
+                "look_id": item["look_id"],
+                "display_keyword": item["display_keyword"].strip(),
+                "fit_score": clamp(float(item["fit_score"])),
+                "reason": item["reason"].strip(),
+                "evidence_source_ids": sorted(theme_source_ids),
+            })
+    return ranked
+
+
+# --- 5. 룩 라벨링 (유지) ---
 
 def label_looks() -> list[dict[str, Any]]:
     looks = read_csv(INPUTS / "look_catalog_raw.csv")
@@ -255,135 +303,48 @@ def label_looks() -> list[dict[str, Any]]:
     return labeled
 
 
-def _look_sets(look: dict[str, Any]) -> dict[str, set[str]]:
-    return {
-        "style_moods": tags(look.get("style_tags")),
-        "colors": tags(look.get("color_tags")),
-        "items": tags(look.get("item_tags")),
-        "materials": tags(look.get("material_tags")),
-        "events": tags(look.get("event_tags")),
-        "tpos": tags(look.get("tpo_tags")),
-        "weather": tags(look.get("weather_tags")),
-        "seasons": {look.get("season", "")} - {""},
-    }
+# --- 6. assemble_slots: 슬롯 조립 (채운 만큼, 중복 없이) ---
 
-
-MATCH_FIELDS = {
-    "trend_discovery": ["style_moods", "materials", "items"],
-    "event_tpo": ["events", "tpos"],
-    "season_weather": ["weather", "seasons", "items", "materials"],
-    "item_led": ["items"],
-    "occasion": ["tpos"],
-}
-
-PRIMARY_FIELDS = {
-    "trend_discovery": ["style_moods"],
-    "event_tpo": ["events", "tpos"],
-    "season_weather": ["weather"],
-    "item_led": ["items"],
-    "occasion": ["tpos"],
-}
-
-
-def retrieve_candidates(anchors: list[dict[str, Any]], looks: list[dict[str, Any]], minimum_confidence: float) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    for anchor in anchors:
-        fields = MATCH_FIELDS[anchor["category"]]
-        for look in looks:
-            look_values = _look_sets(look)
-            primary_match = set()
-            for field in PRIMARY_FIELDS[anchor["category"]]:
-                primary_match |= set(anchor[field]) & look_values[field]
-            if not primary_match:
-                continue
-            matched = set()
-            for field in fields:
-                matched |= set(anchor[field]) & look_values[field]
-            eligible = (
-                bool(anchor["display_keyword"])
-                and (look.get("shot_type") == "full_body" or as_bool(look.get("full_body_visible")))
-                and float(look["label_confidence"]) >= minimum_confidence
-                and bool(tags(look.get("linked_product_ids")))
-            )
-            candidates.append({
-                "category": anchor["category"],
-                "anchor_id": anchor["anchor_id"],
-                "display_keyword": anchor["display_keyword"],
-                "source_ids": joined(anchor["evidence_source_ids"]),
-                "look_id": look["look_id"],
-                "look_title": look["look_title"],
-                "image_url": look["image_url"],
-                "shot_type": look["shot_type"],
-                "full_body_visible": look["full_body_visible"],
-                "matched_tags": joined(matched),
-                "match_count": len(matched),
-                "label_confidence": look["label_confidence"],
-                "linked_product_ids": look["linked_product_ids"],
-                "eligible": str(eligible).lower(),
-            })
-    return candidates
-
-
-def _priority(candidate: dict[str, Any], category: str) -> tuple[Any, ...]:
-    return (
-        -int(candidate["match_count"]),
-        -float(candidate["label_confidence"]),
-        -len(tags(candidate["linked_product_ids"])),
-        candidate["look_id"],
-    )
-
-
-def select_by_category(candidates: list[dict[str, Any]], config: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    quotas = {key: int(value) for key, value in config["quotas"].items()}
-    by_category: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for candidate in candidates:
-        if candidate["eligible"] == "true":
-            by_category[candidate["category"]].append(candidate)
-    selected: list[dict[str, Any]] = []
+def assemble_slots(ranked: list[dict[str, Any]], themes: list[dict[str, Any]], looks: list[dict[str, Any]], target_slots: int, per_theme_cap: int) -> list[dict[str, Any]]:
+    look_by_id = {look["look_id"]: look for look in looks}
+    by_theme: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in ranked:
+        by_theme[row["theme_id"]].append(row)
+    for theme_id in by_theme:
+        by_theme[theme_id].sort(key=lambda row: (-row["fit_score"], row["look_id"]))
+    theme_order = [theme["theme_id"] for theme in themes]
+    theme_counts = {theme["theme_id"]: 0 for theme in themes}
     used: set[str] = set()
-    actual = {category: 0 for category in CATEGORIES}
-    unfilled = 0
-    for category in CATEGORIES:
-        choices = sorted(by_category[category], key=lambda row: _priority(row, category))
-        count = 0
-        anchor_ids = sorted({row["anchor_id"] for row in choices})
-        for anchor_id in anchor_ids:
-            if count >= quotas[category]:
-                break
-            for candidate in choices:
-                if candidate["anchor_id"] != anchor_id or candidate["look_id"] in used:
-                    continue
-                picked = dict(candidate)
-                picked["selection_reason"] = f"{category} 대표 키워드 직접 일치: {candidate['matched_tags']}"
-                selected.append(picked)
-                used.add(candidate["look_id"])
-                count += 1
-                actual[category] += 1
-                break
-        for candidate in choices:
-            if candidate["look_id"] in used or count >= quotas[category]:
+    selected: list[dict[str, Any]] = []
+    progressing = True
+    while len(selected) < target_slots and progressing:
+        progressing = False
+        for theme_id in theme_order:
+            if len(selected) >= target_slots or theme_counts[theme_id] >= per_theme_cap:
                 continue
-            picked = dict(candidate)
-            picked["selection_reason"] = f"{category} 직접 일치: {candidate['matched_tags']}"
-            selected.append(picked)
-            used.add(candidate["look_id"])
-            count += 1
-            actual[category] += 1
-        unfilled += quotas[category] - count
-    if unfilled:
-        for category in config["fallback_order"]:
-            choices = sorted(by_category[category], key=lambda row: _priority(row, category))
-            for candidate in choices:
-                if not unfilled or candidate["look_id"] in used:
+            for row in by_theme[theme_id]:
+                look = look_by_id.get(row["look_id"])
+                if row["look_id"] in used or look is None:
                     continue
-                picked = dict(candidate)
-                picked["selection_reason"] = f"재할당된 {category} 슬롯: {candidate['matched_tags']}"
-                selected.append(picked)
-                used.add(candidate["look_id"])
-                actual[category] += 1
-                unfilled -= 1
-    return selected, actual
+                selected.append({
+                    "slot": len(selected) + 1,
+                    "category": row["theme_label"],
+                    "display_keyword": row["display_keyword"],
+                    "look_id": row["look_id"],
+                    "look_title": look.get("look_title", ""),
+                    "image_url": look.get("image_url", ""),
+                    "full_body_visible": look.get("full_body_visible", ""),
+                    "source_ids": joined(row["evidence_source_ids"]),
+                    "selection_reason": row["reason"],
+                })
+                used.add(row["look_id"])
+                theme_counts[theme_id] += 1
+                progressing = True
+                break
+    return selected
 
+
+# --- 7. 피드백 지표 (유지, 참고용) ---
 
 def feedback_scores() -> list[dict[str, Any]]:
     rows = read_csv(INPUTS / "feedback_log_sample.csv")
@@ -399,22 +360,7 @@ def feedback_scores() -> list[dict[str, Any]]:
     return result
 
 
-def build_plan(selected: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    plan = []
-    for slot, row in enumerate(selected, start=1):
-        plan.append({
-            "slot": slot,
-            "category": row["category"],
-            "display_keyword": row["display_keyword"],
-            "look_id": row["look_id"],
-            "look_title": row["look_title"],
-            "image_url": row["image_url"],
-            "full_body_visible": row["full_body_visible"],
-            "source_ids": row["source_ids"],
-            "selection_reason": row["selection_reason"],
-        })
-    return plan
-
+# --- 8. 상품 매핑 (유지) ---
 
 def map_products(plan: list[dict[str, Any]], looks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     products = {row["product_id"]: row for row in read_csv(INPUTS / "product_catalog.csv")}
@@ -447,12 +393,14 @@ def map_products(plan: list[dict[str, Any]], looks: list[dict[str, Any]]) -> lis
     return rows
 
 
-def generate_reports(plan: list[dict[str, Any]], mappings: list[dict[str, Any]], sources: dict[str, Any], actual: dict[str, int]) -> None:
+# --- 9. 리포트 (유지, category=테마 라벨) ---
+
+def generate_reports(plan: list[dict[str, Any]], mappings: list[dict[str, Any]], sources: dict[str, Any], distribution: dict[str, int]) -> None:
     products_by_look: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in mappings:
         products_by_look[row["look_id"]].append(row)
     cards = ["# Look-first 카드", ""]
-    reasons = ["# 노출 전략 리포트", "", "카테고리별 실제 슬롯 수: " + json.dumps(actual, ensure_ascii=False), ""]
+    reasons = ["# 노출 전략 리포트", "", "테마별 슬롯 수: " + json.dumps(distribution, ensure_ascii=False), ""]
     for row in plan:
         cards.extend([
             f"## {row['slot']}. {row['display_keyword']}",
@@ -470,7 +418,7 @@ def generate_reports(plan: list[dict[str, Any]], mappings: list[dict[str, Any]],
         cards.append("")
         reasons.extend([
             f"## 슬롯 {row['slot']} — {row['display_keyword']}",
-            f"- 카테고리: `{row['category']}`",
+            f"- 테마: `{row['category']}`",
             f"- 전신 코디: `{row['look_id']}`",
             f"- 이유: {row['selection_reason']}",
             f"- 근거 ID: {row['source_ids']}",
@@ -485,27 +433,37 @@ def generate_reports(plan: list[dict[str, Any]], mappings: list[dict[str, Any]],
     (REPORTS / "evidence_table.md").write_text("\n".join(evidence) + "\n", encoding="utf-8")
 
 
-def validate(plan: list[dict[str, Any]], actual: dict[str, int], config: dict[str, Any]) -> dict[str, Any]:
+# --- 10. 검증 (완화) ---
+
+def validate(plan: list[dict[str, Any]], config: dict[str, Any]) -> dict[str, Any]:
     errors = []
+    target = int(config["target_slots"])
+    if not plan:
+        errors.append("no slots generated")
     if len({row["look_id"] for row in plan}) != len(plan):
         errors.append("duplicate look in plan")
     if any(not row["display_keyword"] for row in plan):
         errors.append("missing display keyword")
     if any(not as_bool(row["full_body_visible"]) for row in plan):
         errors.append("non-full-body look selected")
+    if any(not row["source_ids"] for row in plan):
+        errors.append("missing evidence source ids")
     report_text = "\n".join(path.read_text(encoding="utf-8") for path in REPORTS.glob("*.md"))
     for claim in BANNED_CLAIMS:
         if claim in report_text:
             errors.append(f"banned claim detected: {claim}")
+    coverage_gap = max(target - len(plan), 0)
+    theme_counts: dict[str, int] = defaultdict(int)
+    for row in plan:
+        theme_counts[row["category"]] += 1
     keyword_coverage = sum(bool(row["display_keyword"]) for row in plan) / max(len(plan), 1)
     full_body_coverage = sum(as_bool(row["full_body_visible"]) for row in plan) / max(len(plan), 1)
-    expected_slots = int(config["slot_count"])
-    if len(plan) != expected_slots:
-        errors.append(f"expected {expected_slots} slots, generated {len(plan)}")
     result = {
         "status": "PASS" if not errors else "FAIL",
         "slot_count": len(plan),
-        "category_counts": actual,
+        "target_slots": target,
+        "coverage_gap": coverage_gap,
+        "theme_counts": dict(theme_counts),
         "keyword_coverage": keyword_coverage,
         "full_body_look_coverage": full_body_coverage,
         "errors": errors,
@@ -513,12 +471,13 @@ def validate(plan: list[dict[str, Any]], actual: dict[str, int], config: dict[st
     text = [
         "# Validation report", "",
         f"- Status: **{result['status']}**",
-        f"- Slot count: {len(plan)} / {expected_slots}",
+        f"- Slot count: {len(plan)} / {target}  (coverage gap: {coverage_gap})",
         f"- Keyword Coverage: {keyword_coverage:.1f}",
         f"- Full-body Look Coverage: {full_body_coverage:.1f}",
-        f"- Category counts: `{json.dumps(actual, ensure_ascii=False)}`",
+        f"- Theme counts: `{json.dumps(dict(theme_counts), ensure_ascii=False)}`",
         f"- Errors: `{json.dumps(errors, ensure_ascii=False)}`",
         "",
+        "슬롯 수가 target에 미달해도(커버리지 갭) 실패가 아니다. 하드 게이트(전신·그라운딩·중복·금지문구·빈 계획)만 실패로 본다.",
         "피드백 로그는 참고용이며 슬롯 선별에는 사용하지 않았다.",
     ]
     (REPORTS / "validation_report.md").write_text("\n".join(text) + "\n", encoding="utf-8")
@@ -534,7 +493,7 @@ def clean_generated() -> None:
                 path.unlink()
 
 
-def run(mode: str = "sample", as_of: str | None = None, clean_output: bool = False) -> dict[str, Any]:
+def run(as_of: str | None = None, clean_output: bool = False) -> dict[str, Any]:
     config = load_structured(INPUTS / "home_context_config.yaml")
     as_of = as_of or config["as_of"]
     if clean_output:
@@ -542,19 +501,15 @@ def run(mode: str = "sample", as_of: str | None = None, clean_output: bool = Fal
     OUTPUTS.mkdir(parents=True, exist_ok=True)
     REPORTS.mkdir(parents=True, exist_ok=True)
 
-    search_data = sample_search(as_of) if mode == "sample" else live_search(as_of)
+    search_data = live_search(as_of)
     write_json(OUTPUTS / "source_search_results.json", search_data)
-    signals = sample_extract(search_data, as_of) if mode == "sample" else live_extract(search_data, as_of)
-    write_json(OUTPUTS / "extracted_signals.json", {"signals": signals})
-    anchors = normalize_anchors(signals)
-    write_json(OUTPUTS / "normalized_anchors.json", {"anchors": anchors})
-    write_json(OUTPUTS / "context_anchors.json", {"anchors": [row for row in anchors if row["category"] in {"event_tpo", "season_weather", "occasion"}]})
 
-    trend_rows = [
-        {"source_id": source["source_id"], "category": source["category"], "display_keyword": source["display_keyword"], "title": source["title"], "url": source["url"], "published_at": source["published_at"]}
-        for source in search_data["results"] if source["category"] in {"trend_discovery", "item_led"}
-    ]
-    write_csv(OUTPUTS / "trend_candidates.csv", trend_rows, ["source_id", "category", "display_keyword", "title", "url", "published_at"])
+    signals = extract(search_data)
+    write_json(OUTPUTS / "extracted_signals.json", {"signals": signals})
+
+    theme_count = config.get("theme_count", {"min": 3, "max": 6})
+    themes = group_signals(signals, theme_count)
+    write_json(OUTPUTS / "emergent_themes.json", {"themes": themes})
 
     looks = label_looks()
     look_fields = list(looks[0].keys())
@@ -562,25 +517,39 @@ def run(mode: str = "sample", as_of: str | None = None, clean_output: bool = Fal
     confidence_rows = [{"look_id": row["look_id"], "label_confidence": row["label_confidence"], "label_sources": row["label_sources"]} for row in looks]
     write_csv(OUTPUTS / "label_confidence_report.csv", confidence_rows, ["look_id", "label_confidence", "label_sources"])
 
-    categories = {"slot_count": config["slot_count"], "quotas": config["quotas"], "fallback_order": config["fallback_order"]}
-    write_json(OUTPUTS / "home_exposure_categories.json", categories)
-    candidates = retrieve_candidates(anchors, looks, float(config["minimum_label_confidence"]))
-    candidate_fields = ["category", "anchor_id", "display_keyword", "source_ids", "look_id", "look_title", "image_url", "shot_type", "full_body_visible", "matched_tags", "match_count", "label_confidence", "linked_product_ids", "eligible"]
-    write_csv(OUTPUTS / "anchor_matched_look_candidates.csv", candidates, candidate_fields)
+    min_conf = float(config["minimum_label_confidence"])
+    eligible_looks = [
+        look for look in looks
+        if (look.get("shot_type") == "full_body" or as_bool(look.get("full_body_visible")))
+        and float(look["label_confidence"]) >= min_conf
+        and bool(tags(look.get("linked_product_ids")))
+    ]
+
+    ranked = rank_looks(themes, eligible_looks, signals)
+    ranking_rows = [{**row, "evidence_source_ids": joined(row["evidence_source_ids"])} for row in ranked]
+    ranking_fields = ["theme_id", "theme_label", "look_id", "display_keyword", "fit_score", "reason", "evidence_source_ids"]
+    write_csv(OUTPUTS / "theme_look_ranking.csv", ranking_rows, ranking_fields)
 
     feedback = feedback_scores()
     write_csv(OUTPUTS / "feedback_scores.csv", feedback, ["look_id", "smoothed_ctr", "save_rate", "normalized_dwell_time", "feedback_score", "usage"])
-    selected, actual = select_by_category(candidates, config)
-    selection_fields = candidate_fields + ["selection_reason"]
-    write_csv(OUTPUTS / "category_look_selection.csv", selected, selection_fields)
-    plan = build_plan(selected)
+
+    target_slots = int(config["target_slots"])
+    per_theme_cap = int(config["per_theme_cap"])
+    plan = assemble_slots(ranked, themes, looks, target_slots, per_theme_cap)
     plan_fields = ["slot", "category", "display_keyword", "look_id", "look_title", "image_url", "full_body_visible", "source_ids", "selection_reason"]
     write_csv(OUTPUTS / "home_exposure_plan.csv", plan, plan_fields)
+    write_csv(OUTPUTS / "category_look_selection.csv", plan, plan_fields)
+
     mappings = map_products(plan, looks)
     mapping_fields = ["slot", "look_id", "display_keyword", "mapping_type", "product_id", "product_name", "category", "reason"]
     write_csv(OUTPUTS / "look_product_mapping.csv", mappings, mapping_fields)
-    generate_reports(plan, mappings, search_data, actual)
-    validation = validate(plan, actual, config)
+
+    distribution: dict[str, int] = defaultdict(int)
+    for row in plan:
+        distribution[row["category"]] += 1
+    generate_reports(plan, mappings, search_data, dict(distribution))
+
+    validation = validate(plan, config)
     if validation["status"] != "PASS":
         raise RuntimeError("pipeline validation failed: " + "; ".join(validation["errors"]))
     return validation

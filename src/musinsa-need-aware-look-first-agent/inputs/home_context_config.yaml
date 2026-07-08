@@ -1,21 +1,11 @@
 {
   "as_of": "2026-07-06",
   "region": "Seoul",
-  "slot_count": 10,
-  "minimum_label_confidence": 0.6,
-  "quotas": {
-    "trend_discovery": 2,
-    "event_tpo": 2,
-    "season_weather": 2,
-    "item_led": 2,
-    "occasion": 2
+  "target_slots": 10,
+  "per_theme_cap": 3,
+  "theme_count": {
+    "min": 3,
+    "max": 6
   },
-  "fallback_order": [
-    "event_tpo",
-    "season_weather",
-    "trend_discovery",
-    "item_led",
-    "occasion"
-  ]
+  "minimum_label_confidence": 0.6
 }
-

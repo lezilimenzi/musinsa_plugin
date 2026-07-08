@@ -10,12 +10,11 @@ from pipeline import run
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate a keyword-led full-body Look-first slot plan.")
-    parser.add_argument("--mode", choices=["sample", "live"], default="sample")
+    parser = argparse.ArgumentParser(description="Generate an emergent-theme, keyword-led full-body Look-first slot plan (live only).")
     parser.add_argument("--as-of", help="Analysis date in YYYY-MM-DD")
     parser.add_argument("--clean-output", action="store_true")
     args = parser.parse_args()
-    result = run(mode=args.mode, as_of=args.as_of, clean_output=args.clean_output)
+    result = run(as_of=args.as_of, clean_output=args.clean_output)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

@@ -6,20 +6,15 @@
 
 ## 실행
 
-Python 3.11 이상에서:
+Python 3.11 이상, `OPENAI_API_KEY` 필요 (live 전용):
 
 ```powershell
 python -m pip install -r requirements.txt
 cd src/musinsa-need-aware-look-first-agent
-python tools/run_pipeline.py
-```
-
-기본값은 API를 호출하지 않는 `sample` 모드다. 실제 웹 검색과 LLM 추출은 다음처럼 실행한다.
-
-```powershell
 $env:OPENAI_API_KEY="..."
-python tools/run_pipeline.py --mode live
+python tools/run_pipeline.py --clean-output
 ```
 
-자세한 내용은 플러그인 내부 `README.md`를 참고한다.
+공개 웹 검색으로 트렌드 신호를 모아 자유서술로 추출하고, 창발 테마로 묶은 뒤 LLM이 전신 코디를
+랭킹해 슬롯을 만든다. sample(오프라인) 모드는 없다. 자세한 내용은 플러그인 내부 `README.md` 참고.
 
