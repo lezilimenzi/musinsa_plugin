@@ -1,7 +1,7 @@
 # MUSINSA Need-aware Look-first Agent 구현 계획 (재설계 · 방향 B)
 
 상태: **초안 — 승인 전. 구현하지 말 것 (Do not implement yet).**
-사전 분석: `RESEARCH.md §27`.
+사전 분석·설계 변천: `RESEARCH.md 부록`.
 
 ## 0. 배경 — 왜 재설계하나
 
