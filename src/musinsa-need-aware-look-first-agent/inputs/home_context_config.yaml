@@ -3,6 +3,7 @@
   "region": "Seoul",
   "target_slots": 10,
   "per_theme_cap": 3,
+  "min_fit_score": 0.6,
   "theme_count": {
     "min": 3,
     "max": 6

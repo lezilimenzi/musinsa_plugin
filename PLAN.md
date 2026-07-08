@@ -203,18 +203,24 @@ LLM이 3~6개 테마를 생성하며 라벨은 데이터에서 만든다(사전 
 **사후검증:** `look_id ∈ 카탈로그`, `full_body==true`, `evidence_source_ids ⊆ 테마 신호 source_id`.
 위반 행은 드롭한다.
 
-### 6.5 슬롯 조립 규칙
+### 6.5 슬롯 조립 규칙 (전역 배정)
 
 ```text
-- 테마 라운드로빈으로 fit_score 상위 룩을 슬롯에 배치
+- 모든 (테마,룩) 쌍을 fit_score 전역 정렬 → 상위부터 배정 (각 룩이 자신에게 가장 잘 맞는 테마로 감)
+- fit_score < min_fit_score 인 쌍은 버림 (저품질 강제 삽입 차단)
 - 한 look_id를 두 슬롯에 중복 배치하지 않음
 - 테마당 최대 per_theme_cap
-- target_slots까지 채우되, 후보가 부족하면 그대로 진행(강제 fallback 없음)
-- 동점은 look_id 오름차순으로 결정
+- target_slots까지 채우되, 하한 통과 후보가 부족하면 그대로 진행(강제 채움 없음)
+- 동점은 (theme_id, look_id)로 결정 (결정론)
 ```
 
-`target_slots`는 홈 피드가 원하는 슬롯 수의 **소프트 상한/목표**다. 과거의 "정확히 N개여야
-PASS"라는 rigid `slot_count` 검증은 폐기한다.
+**라운드로빈이 아닌 전역 배정을 쓰는 이유:** 라운드로빈은 테마 차례가 먼저 온 쪽이 룩을
+선점해 전역적으로 열등한 배정(예: fit 0.70짜리를 다른 테마가 0.08에 낭비)을 낳는다. 전역 배정은
+룩을 "가장 잘 맞는 테마"로 보낸다. **테마 균형은 강제하지 않는다** — 트렌드는 특정 테마에 쏠릴 수 있고
+그게 실제 모습이다.
+
+`target_slots`는 소프트 상한/목표다. rigid `slot_count` 검증은 폐기했고, `min_fit_score` 하한 때문에
+슬롯이 target보다 적을 수 있다(커버리지 갭, PASS).
 
 ### 6.6 피드백 참고 지표
 
@@ -252,7 +258,7 @@ feedback_score = 0.50*smoothed_ctr_norm + 0.30*save_rate + 0.20*normalized_dwell
 
 ### 7.6 inputs/
 - 실제 입력 6종: `look_catalog_raw.csv`(전신 룩·상품 연결), `product_catalog.csv`, `human_labeled_looks.csv`, `feedback_log_sample.csv`, `home_context_config.yaml`, `trend_signal_samples.csv`.
-- `home_context_config.yaml`: `quotas`/`fallback_order`/`slot_count` 폐기 → `target_slots`, `per_theme_cap`, `theme_count:{min:3,max:6}` 도입.
+- `home_context_config.yaml`: `quotas`/`fallback_order`/`slot_count` 폐기 → `target_slots`, `per_theme_cap`, `min_fit_score`(기본 0.6), `theme_count:{min:3,max:6}` 도입.
 - `trend_signal_samples.csv`: sample 전용이라 sample 제거와 함께 삭제 예정.
 - **삭제 완료:** `label_taxonomy.yaml`, `synonym_dictionary.yaml`, 미사용 입력 5종(`trend_sources`/`context_sources`/`event_calendar`/`social_event_posts`/`weather_season_context`).
 
@@ -373,9 +379,10 @@ python C:/Users/akswo/.codex/skills/.system/plugin-creator/scripts/validate_plug
 
 - 재설계 계획 승인: **완료** → 브랜치 `redesign/emergent-theme-ranking`에서 구현
 - 파이프라인 재작성: **완료** (extract/group_signals/rank_looks/assemble_slots 신설, 태그·sample·shim 제거, validate 완화)
+- 조립 알고리즘: **전역 배정 + `min_fit_score` 하한**(라운드로빈의 오배정·저품질 강제 삽입 교정) — 완료
 - config·run_pipeline·SKILL 5종·README 갱신: **완료**
-- 테스트: **17개 통과** (assemble/validate/report 계약 + label_looks; LLM 단계는 모의/계약 검증)
-- live 스모크(§10.3): **미실행** — API 키·비용 필요, 사용자 환경에서 확인 예정
+- 테스트: **19개 통과** (assemble 전역배정/하한, validate/report 계약 + label_looks; LLM 단계는 모의/계약 검증)
+- live 스모크(§10.3): **1회 실행 완료** (PASS, 창발 테마 4개, 슬롯 채워짐). 조립 개선 후 재실행은 사용자 환경에서 확인 예정
 - 초기 MVP(태그 기반): 본 재설계로 대체됨
 - `live_search` 개선(검색 강제·재시도·skip): 적용 완료(`tools/debugging.md`)
 

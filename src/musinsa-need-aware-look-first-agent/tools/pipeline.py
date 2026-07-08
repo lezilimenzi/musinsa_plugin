@@ -303,44 +303,40 @@ def label_looks() -> list[dict[str, Any]]:
     return labeled
 
 
-# --- 6. assemble_slots: 슬롯 조립 (채운 만큼, 중복 없이) ---
+# --- 6. assemble_slots: 전역 배정 (fit 상위부터, min_fit_score 하한, 채운 만큼) ---
 
-def assemble_slots(ranked: list[dict[str, Any]], themes: list[dict[str, Any]], looks: list[dict[str, Any]], target_slots: int, per_theme_cap: int) -> list[dict[str, Any]]:
+def assemble_slots(ranked: list[dict[str, Any]], looks: list[dict[str, Any]], target_slots: int, per_theme_cap: int, min_fit_score: float = 0.0) -> list[dict[str, Any]]:
+    """모든 (테마,룩) 쌍을 fit_score 전역 정렬해 상위부터 배정한다.
+
+    각 룩은 자신에게 가장 잘 맞는 테마로 간다(라운드로빈의 오배정 회피).
+    fit_score < min_fit_score 인 쌍은 버린다. 룩 중복 금지, 테마당 per_theme_cap,
+    슬롯은 target_slots까지 채우되 후보가 부족하면 그대로 둔다(강제 채움 없음).
+    """
     look_by_id = {look["look_id"]: look for look in looks}
-    by_theme: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for row in ranked:
-        by_theme[row["theme_id"]].append(row)
-    for theme_id in by_theme:
-        by_theme[theme_id].sort(key=lambda row: (-row["fit_score"], row["look_id"]))
-    theme_order = [theme["theme_id"] for theme in themes]
-    theme_counts = {theme["theme_id"]: 0 for theme in themes}
+    pairs = [row for row in ranked if row["fit_score"] >= min_fit_score]
+    pairs.sort(key=lambda row: (-row["fit_score"], row["theme_id"], row["look_id"]))
     used: set[str] = set()
+    theme_counts: dict[str, int] = defaultdict(int)
     selected: list[dict[str, Any]] = []
-    progressing = True
-    while len(selected) < target_slots and progressing:
-        progressing = False
-        for theme_id in theme_order:
-            if len(selected) >= target_slots or theme_counts[theme_id] >= per_theme_cap:
-                continue
-            for row in by_theme[theme_id]:
-                look = look_by_id.get(row["look_id"])
-                if row["look_id"] in used or look is None:
-                    continue
-                selected.append({
-                    "slot": len(selected) + 1,
-                    "category": row["theme_label"],
-                    "display_keyword": row["display_keyword"],
-                    "look_id": row["look_id"],
-                    "look_title": look.get("look_title", ""),
-                    "image_url": look.get("image_url", ""),
-                    "full_body_visible": look.get("full_body_visible", ""),
-                    "source_ids": joined(row["evidence_source_ids"]),
-                    "selection_reason": row["reason"],
-                })
-                used.add(row["look_id"])
-                theme_counts[theme_id] += 1
-                progressing = True
-                break
+    for row in pairs:
+        if len(selected) >= target_slots:
+            break
+        look = look_by_id.get(row["look_id"])
+        if row["look_id"] in used or look is None or theme_counts[row["theme_id"]] >= per_theme_cap:
+            continue
+        selected.append({
+            "slot": len(selected) + 1,
+            "category": row["theme_label"],
+            "display_keyword": row["display_keyword"],
+            "look_id": row["look_id"],
+            "look_title": look.get("look_title", ""),
+            "image_url": look.get("image_url", ""),
+            "full_body_visible": look.get("full_body_visible", ""),
+            "source_ids": joined(row["evidence_source_ids"]),
+            "selection_reason": row["reason"],
+        })
+        used.add(row["look_id"])
+        theme_counts[row["theme_id"]] += 1
     return selected
 
 
@@ -535,7 +531,8 @@ def run(as_of: str | None = None, clean_output: bool = False) -> dict[str, Any]:
 
     target_slots = int(config["target_slots"])
     per_theme_cap = int(config["per_theme_cap"])
-    plan = assemble_slots(ranked, themes, looks, target_slots, per_theme_cap)
+    min_fit_score = float(config.get("min_fit_score", 0.0))
+    plan = assemble_slots(ranked, looks, target_slots, per_theme_cap, min_fit_score)
     plan_fields = ["slot", "category", "display_keyword", "look_id", "look_title", "image_url", "full_body_visible", "source_ids", "selection_reason"]
     write_csv(OUTPUTS / "home_exposure_plan.csv", plan, plan_fields)
     write_csv(OUTPUTS / "category_look_selection.csv", plan, plan_fields)
