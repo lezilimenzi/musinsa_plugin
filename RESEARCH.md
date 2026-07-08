@@ -709,10 +709,11 @@ submission.zip                                           # 예선 최종 제출 
 │   │   ├── human_labeled_looks.csv                    # 사람이 검수한 소량의 룩 라벨 데이터. 자동 라벨 검증 기준으로 사용
 │   │   └── feedback_log_sample.csv                    # 룩별 impression, click, save, dwell_seconds 샘플 로그. 실제 운영 로그가 없으므로 MVP 샘플 사용
 │   │
-│   ├── tools/                                         # 분석·추출·테마·랭킹·매핑·리포트·검증 로직 폴더
-│   │   ├── run_pipeline.py                            # 파이프라인 엔트리포인트(CLI wrapper, live 전용)
-│   │   ├── pipeline.py                                # live_search·extract·group·rank·assemble·map·report·validate 전체 로직
-│   │   └── common.py                                  # 공통 CSV/JSON/YAML 입출력·정규화 유틸
+│   ├── tools/                                         # 파이프라인 코드 폴더 (실제 로직은 pipeline.py에 집중)
+│   │   ├── run_pipeline.py                            # 엔트리포인트 CLI wrapper (from pipeline import run)
+│   │   ├── pipeline.py                                # 검색·추출·라벨·매칭·선별·상품매핑·리포트·검증 전체 로직
+│   │   ├── common.py                                  # 공통 CSV/JSON/YAML 입출력·정규화 유틸
+│   │   └── debugging.md                               # live_search 디버깅 기록
 │   │
 │   ├── outputs/                                       # 중간 산출물 폴더
 │   │   ├── trend_candidates.csv                       # 초기 트렌드 후보 목록과 점수

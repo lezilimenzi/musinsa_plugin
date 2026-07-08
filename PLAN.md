@@ -251,9 +251,17 @@ feedback_score = 0.50*smoothed_ctr_norm + 0.30*save_rate + 0.20*normalized_dwell
 - `--mode` 인자 제거(항상 live). `--as-of`, `--clean-output`만 유지.
 
 ### 7.6 inputs/
-- `look_catalog_raw.csv`(전신 룩·상품 연결), `product_catalog.csv`, `human_labeled_looks.csv`, `feedback_log_sample.csv`, `home_context_config.yaml`, 행사/날씨/소스 yaml 등.
+- 실제 입력 6종: `look_catalog_raw.csv`(전신 룩·상품 연결), `product_catalog.csv`, `human_labeled_looks.csv`, `feedback_log_sample.csv`, `home_context_config.yaml`, `trend_signal_samples.csv`.
 - `home_context_config.yaml`: `quotas`/`fallback_order`/`slot_count` 폐기 → `target_slots`, `per_theme_cap`, `theme_count:{min:3,max:6}` 도입.
-- **삭제 완료:** `label_taxonomy.yaml`, `synonym_dictionary.yaml`.
+- `trend_signal_samples.csv`: sample 전용이라 sample 제거와 함께 삭제 예정.
+- **삭제 완료:** `label_taxonomy.yaml`, `synonym_dictionary.yaml`, 미사용 입력 5종(`trend_sources`/`context_sources`/`event_calendar`/`social_event_posts`/`weather_season_context`).
+
+### 7.7 tools/ 단계명 shim 정리 (완료)
+RESEARCH 단계명을 모듈로 유지하던 4줄짜리 re-export shim 12종(`source_search`, `classify_anchors`,
+`extract_information_with_llm`, `retrieve_anchor_matched_looks`, `select_looks_by_category`,
+`route_home_exposure_categories`, `analyze_feedback_logs`, `plan_home_look_exposure`,
+`match_looks_to_products`, `label_looks`, `generate_reports`, `validate_outputs`)은 **아무도 import하지
+않는 dead 파일**이라 **삭제 완료**(2026-07-08). 실제 로직은 `pipeline.py`에만 존재하며 테스트 10종 통과 확인.
 
 ## 8. 필수 산출물
 
@@ -366,6 +374,45 @@ python C:/Users/akswo/.codex/skills/.system/plugin-creator/scripts/validate_plug
 - 재설계 계획 승인: **대기 중** (구현 전)
 - 초기 MVP(태그 기반): 구현·검증 완료됐으나 본 재설계로 대체 예정
 - `live_search` 개선(검색 강제·재시도·skip): 적용 완료(`tools/debugging.md`)
+
+## 16. 확장 로드맵 (앱 확장 시 · MVP 범위 밖, 문서화만)
+
+> 아래는 **MVP 구현 범위가 아니다.** 나중에 실제 무신사 코디를 서비스에 연결할 때를 대비한
+> 확장 지점 기록이다. MVP는 여전히 §1~§14 범위로만 구현한다.
+
+### 16.1 왜 필요한가 — 스케일 병목
+현재 `rank_looks`는 **룩 카탈로그 전체를 LLM 프롬프트에 넣어** 랭킹한다. 룩 10개에선 되지만,
+무신사 실제 코디/스냅은 수만~수백만 건이라 프롬프트에 다 넣을 수 없다. 즉 "LLM이 전체 카탈로그를
+훑어 랭킹"하는 방식은 **스케일에서 무너진다.** MVP는 의도된 소규모 PoC 지름길이다.
+
+### 16.2 목표 구조 — 2단계 (검색 → 재랭킹)
+```
+트렌드/테마 ──① retrieval ──▶ 후보 수십 건 ──② LLM 재랭킹 ──▶ 최종 슬롯 + 근거
+            (수백만 코디 중)                  (지금의 rank_looks)
+```
+- **① retrieval:** 수백만 코디를 후보 수십 건으로 좁히는 **벡터(임베딩) 검색** 인덱스. (MVP에서 미룬 임베딩이 여기서 필수화)
+- **② rerank:** 후보 수십 건에 대해서만 **현재의 LLM 제로샷 랭킹**을 돌려 순위+한국어 근거 생성. LLM 랭킹은 검색기가 아니라 **재랭커**로 위치 이동.
+
+### 16.3 핵심 캐비어트 — 코디는 이미지다
+샘플 룩은 서술적 한국어 제목이 있어 텍스트만으로 매칭되지만, 실제 무신사 스냅/코디는 제목·태그가
+빈약하고 정보 대부분이 **이미지**에 있다. 따라서 retrieval은 **멀티모달(이미지+텍스트) 임베딩**이어야
+트렌드 의미에 맞는 코디를 제대로 불러온다. 텍스트-only 임베딩은 시각 스타일 신호를 놓친다.
+
+### 16.4 데이터 모델 호환성
+Signal/Theme/RankedLook 스키마는 그대로 확장 호환. 룩에 `embedding 벡터 + 실제 메타 + 이미지`만
+추가되고, 바뀌는 건 "룩을 어디서 가져오나"(CSV → 무신사 코디 DB/API + 벡터 인덱스)이지 하류 로직이 아니다.
+
+### 16.5 지금 넣어둘 확장 이음새 (권장, 저비용)
+`rank_looks(themes, candidate_looks)` 를 **"후보 집합"을 인자로 받도록** 정의한다.
+- MVP: `candidate_looks = 전체 룩` 을 넘긴다.
+- 앱: `candidate_looks = 검색기 top-K` 로만 바꿔 끼우면 **재랭커 코드는 그대로 재사용**.
+
+이 시그니처 하나로 "MVP의 전체 랭킹"과 "앱의 검색→재랭킹"이 드롭인 호환이 된다. (스코프 변경 아님 — MVP는 전체를 후보로 넘길 뿐)
+
+### 16.6 앱 확장 시 추가로 필요한 것 (범위 밖)
+- 무신사 코디 DB/API 연동, 이미지 파이프라인, 실시간 재고 확인.
+- 벡터 인덱스 운영(색인 갱신, ANN 검색), 임베딩 모델 선택.
+- 개인화·사용자 검색어 라우팅(별도 고도화).
 
 ---
 **다음 액션:** 이 계획 검토/수정 후 승인해 주세요. 승인 전까지 구현하지 않습니다.
