@@ -21,5 +21,4 @@ Outputs:
 
 - `outputs/emergent_themes.json`
 - `outputs/theme_look_ranking.csv`
-- `outputs/category_look_selection.csv`
 - `outputs/home_exposure_plan.csv`

@@ -13,4 +13,3 @@ description: Verify full-body looks and compute label confidence from metadata a
 Outputs:
 
 - `outputs/look_catalog_labeled.csv`
-- `outputs/label_confidence_report.csv`

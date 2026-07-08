@@ -280,11 +280,9 @@ outputs/
 ├── extracted_signals.json          # 자유서술 신호(태그 없음)
 ├── emergent_themes.json            # 창발 테마 (구 home_exposure_categories.json 대체)
 ├── theme_look_ranking.csv          # LLM 랭킹 (구 anchor_matched_look_candidates.csv 대체)
-├── look_catalog_labeled.csv
-├── label_confidence_report.csv
-├── feedback_scores.csv
-├── category_look_selection.csv     # category = theme_label
-└── home_exposure_plan.csv
+├── look_catalog_labeled.csv        # 룩 카탈로그 + label_confidence
+├── feedback_scores.csv             # 참고용(report_only)
+└── home_exposure_plan.csv          # 최종 슬롯 (category = theme_label)
 
 reports/
 ├── look_first_cards.md
@@ -342,8 +340,8 @@ python C:/Users/akswo/.codex/skills/.system/plugin-creator/scripts/validate_plug
   src/musinsa-need-aware-look-first-agent
 ```
 
-검증 후 직접 확인: `home_exposure_plan.csv`(중복/슬롯수),
-`category_look_selection.csv`(테마·이유), `look_product_mapping.csv`(핵심/대체),
+검증 후 직접 확인: `home_exposure_plan.csv`(테마·슬롯·이유·중복),
+`theme_look_ranking.csv`(fit·브랜드), `look_product_mapping.csv`(핵심/대체),
 `evidence_table.md`(근거 추적), `validation_report.md`(PASS·커버리지 갭).
 
 ## 12. 구현 순서 (승인 후, 기계적)

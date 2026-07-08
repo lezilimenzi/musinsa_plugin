@@ -522,8 +522,6 @@ def run(as_of: str | None = None, clean_output: bool = False) -> dict[str, Any]:
     looks = label_looks()
     look_fields = list(looks[0].keys())
     write_csv(OUTPUTS / "look_catalog_labeled.csv", looks, look_fields)
-    confidence_rows = [{"look_id": row["look_id"], "label_confidence": row["label_confidence"], "label_sources": row["label_sources"]} for row in looks]
-    write_csv(OUTPUTS / "label_confidence_report.csv", confidence_rows, ["look_id", "label_confidence", "label_sources"])
 
     min_conf = float(config["minimum_label_confidence"])
     eligible_looks = [
@@ -547,7 +545,6 @@ def run(as_of: str | None = None, clean_output: bool = False) -> dict[str, Any]:
     plan = assemble_slots(ranked, looks, target_slots, per_theme_cap, min_fit_score)
     plan_fields = ["slot", "category", "display_keyword", "look_id", "look_title", "brand", "image_url", "full_body_visible", "source_ids", "selection_reason"]
     write_csv(OUTPUTS / "home_exposure_plan.csv", plan, plan_fields)
-    write_csv(OUTPUTS / "category_look_selection.csv", plan, plan_fields)
 
     mappings = map_products(plan, looks)
     mapping_fields = ["slot", "look_id", "display_keyword", "mapping_type", "product_id", "product_name", "category", "reason"]
