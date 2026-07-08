@@ -711,32 +711,27 @@ submission.zip                                           # 예선 최종 제출 
 │   │   └── debugging.md                               # live_search 디버깅 기록
 │   │
 │   ├── outputs/                                       # 중간 산출물 폴더
-│   │   ├── trend_candidates.csv                       # 초기 트렌드 후보 목록과 점수
-│   │   ├── context_anchors.json                       # 이벤트/날씨/시즌/TPO 기반 상황 Anchor 목록
-│   │   ├── normalized_anchors.json                    # 중복 표현을 정리한 최종 Anchor 구조
-│   │   ├── look_catalog_labeled.csv                   # 최종 라벨링된 룩 카탈로그
-│   │   ├── label_confidence_report.csv                # 룩별 라벨 출처와 신뢰도 리포트
-│   │   ├── home_exposure_categories.json              # 홈 화면 카테고리별 목표 슬롯 수와 재할당 순서
-│   │   ├── anchor_matched_look_candidates.csv         # Anchor 조건과 일치하는 1차 룩 후보 목록
-│   │   ├── feedback_scores.csv                        # 룩별 클릭률, 저장률, 체류시간, feedback score
-│   │   ├── category_look_selection.csv                # 카테고리별 목표 개수와 선별된 룩 목록
-│   │   ├── look_product_mapping.csv                   # 룩과 연결 상품/대체 상품 매핑 결과
-│   │   └── home_exposure_plan.csv                     # 홈/추천판/기획전 슬롯별 대표 키워드와 전신 코디 노출 계획
+│   │   ├── source_search_results.json                # 웹 검색으로 모은 원본 근거(source_id, 제목, URL, snippet)
+│   │   ├── extracted_signals.json                    # LLM이 뽑은 자유서술 트렌드 신호
+│   │   ├── emergent_themes.json                      # 신호를 묶은 창발 테마 3~6개
+│   │   ├── look_catalog_labeled.csv                  # 룩 카탈로그 + brand + label_confidence
+│   │   ├── theme_look_ranking.csv                    # 테마×룩 LLM 적합도(fit_score)·근거·브랜드
+│   │   ├── feedback_scores.csv                        # 룩별 클릭률·저장률·체류(참고용, 선별 미사용)
+│   │   ├── look_product_mapping.csv                  # 슬롯 룩과 핵심/보조/대체 상품 매핑
+│   │   └── home_exposure_plan.csv                     # 최종 노출 슬롯(테마·키워드·룩·브랜드·근거)
 │   │
 │   ├── reports/                                       # 최종 제출/시연용 리포트 폴더
-│   │   ├── look_first_cards.md                        # 실제 홈 화면에 보여줄 Look-first 카드 예시
-│   │   ├── exposure_reason_report.md                  # 각 룩이 왜 노출됐는지 Anchor, 라벨, 상품 연결성 기준으로 설명
-│   │   ├── evidence_table.md                          # 각 주장·트렌드·룩 선정의 공개 근거 또는 입력 데이터 근거 표
-│   │   ├── validation_report.md                       # 검증 방법, 지표, 한계, 환각 방지 결과
-│   │   ├── pdp_copy_suggestions_optional.md           # 선택 산출물. 상품 상세페이지 개선 문구와 스타일링 제안
-│   │   └── campaign_brief_optional.md                 # 선택 산출물. MD/브랜드 담당자용 캠페인 브리프
+│   │   ├── look_first_cards.md                        # 홈 화면용 Look-first 카드(키워드·이미지·브랜드·상품·근거)
+│   │   ├── exposure_reason_report.md                  # 슬롯별 테마·선정 이유·근거 ID (기획자용)
+│   │   ├── evidence_table.md                          # source_id·제목·URL 근거 표
+│   │   └── validation_report.md                       # 검증 결과(전신·그라운딩·중복·금지문구·커버리지 갭)
 │   │
 │   ├── tests/                                         # 최소 검증 테스트 폴더
-│   │   ├── test_anchor_classification.py              # Anchor 분류가 기대대로 작동하는지 테스트
-│   │   ├── test_look_labeling.py                      # 룩 라벨링 결과가 taxonomy와 일치하는지 테스트
-│   │   ├── test_home_exposure_routing.py              # 홈 노출 카테고리 라우팅 테스트
-│   │   ├── test_category_look_selection.py            # 카테고리별 쿼터, 우선순위, 부족 슬롯 재할당 테스트
-│   │   └── test_report_generation.py                  # 리포트 파일 생성 테스트
+│   │   ├── conftest.py                                # tools/ 경로 설정
+│   │   ├── test_assemble_slots.py                     # 전역 배정·min_fit_score 하한·중복/전신/그라운딩 검증
+│   │   ├── test_validate.py                           # 완화 검증(하드 게이트 실패, 슬롯 부족 PASS+gap)
+│   │   ├── test_look_labeling.py                      # 상품 기반 confidence·full_body 검증
+│   │   └── test_report_generation.py                  # 리포트 생성·그라운딩 계약 검증
 │   │
 │   └── README.md                                      # src 내부 실행 방법, 입력 데이터 설명, 명령어, 산출물 설명
 │
