@@ -28,3 +28,10 @@ Thumbs.db
 .vscode/
 *.swp
 
+
+# --- 로컬 도구 설정 / 제출 사본 (저장소 제외) ---
+.claude/
+.codex/
+log-hooks/
+submission/
+submission.zip

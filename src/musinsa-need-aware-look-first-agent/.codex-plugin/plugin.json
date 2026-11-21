@@ -1,7 +1,7 @@
 {
   "name": "musinsa-need-aware-look-first-agent",
   "version": "1.0.0",
-  "description": "Generate grounded keyword-led, full-body Look-first slot plans from fashion trend and context signals.",
+  "description": "Search public web trends, group them into emergent themes, and rank full-body looks with an LLM to generate grounded, brand-aware Look-first slot plans.",
   "author": {
     "name": "lezilimenzi"
   },
@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "MUSINSA Need-aware Look-first Agent",
     "shortDescription": "Plan keyword-led full-body fashion slots",
-    "longDescription": "Searches trend and context signals, extracts display keywords, matches full-body looks, and generates evidence-based slot plans.",
+    "longDescription": "Searches public web trends, extracts free-form fashion signals, groups them into emergent themes, and uses LLM zero-shot ranking (with brand specialty) to select full-body looks and generate evidence-based slot plans.",
     "developerName": "lezilimenzi",
     "category": "Productivity",
     "capabilities": [
@@ -17,8 +17,8 @@
       "Write"
     ],
     "defaultPrompt": [
-      "샘플 데이터로 Look-first 슬롯 계획을 생성해줘.",
-      "현재 트렌드를 검색해 대표 키워드와 전신 코디 후보를 만들어줘."
+      "현재 시즌 트렌드를 검색해 대표 키워드와 전신 코디 슬롯 계획을 만들어줘.",
+      "홈 화면에 노출할 창발 테마별 Look-first 슬롯을 근거와 함께 생성해줘."
     ],
     "brandColor": "#000000"
   }
